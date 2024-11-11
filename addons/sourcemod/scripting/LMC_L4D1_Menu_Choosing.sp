@@ -35,7 +35,7 @@
 
 
 #define PLUGIN_NAME "LMC_L4D1_Menu_Choosing"
-#define PLUGIN_VERSION "1.1.3"
+#define PLUGIN_VERSION "1.1.4"
 
 //change me to whatever flag you want
 #define COMMAND_ACCESS ADMFLAG_CHAT
@@ -131,7 +131,7 @@ static const char sSharedCvarNames[CvarIndexes][] =
 
 static const char sJoinSound[] = "ui/menu_countdown.wav";
 
-static Handle hCvar_ArrayIndex[CvarIndexes] = {INVALID_HANDLE, ...};
+static Handle hCvar_ArrayIndex[CvarIndexes] = {null, ...};
 
 static bool g_bAllowTank = false;
 static bool g_bAllowHunter = true;
@@ -140,15 +140,15 @@ static bool g_bAllowBoomer = true;
 static bool g_bAllowSurvivors = true;
 static bool g_bTankModel = false;
 
-static Handle hCookie_LmcCookie = INVALID_HANDLE;
+static Handle hCookie_LmcCookie = null;
 
-static Handle hCvar_AdminOnlyModel = INVALID_HANDLE;
-static Handle hCvar_AnnounceDelay = INVALID_HANDLE;
-static Handle hCvar_AnnounceMode = INVALID_HANDLE;
+static ConVar hCvar_AdminFlag = null;
+static ConVar hCvar_AnnounceDelay = null;
+static ConVar hCvar_AnnounceMode = null;
 
 static float g_fAnnounceDelay = 15.0;
 static int g_iAnnounceMode = 1;
-static bool g_bAdminOnly = false;
+static char g_sCvar_AdminFlag[AdminFlags_TOTAL];
 
 static int iSavedModel[MAXPLAYERS+1] = {0, ...};
 static bool bAutoApplyMsg[MAXPLAYERS+1];
@@ -181,10 +181,10 @@ public void OnPluginStart()
 
 	CreateConVar("lmc_l4d1_menu_choosing", PLUGIN_VERSION, "LMC_L4D1_Menu_Choosing_Version", FCVAR_DONTRECORD|FCVAR_NOTIFY);
 
-	hCvar_AdminOnlyModel = CreateConVar("lmc_adminonly", "0", "Allow admins to only change models? (1 = true) NOTE: this will disable announcement to player who join. ((#define COMMAND_ACCESS ADMFLAG_CHAT) change to w/o flag you want or (Use override file))", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	hCvar_AnnounceDelay = CreateConVar("lmc_announcedelay", "15.0", "Delay On which a message is displayed for !lmc command", FCVAR_NOTIFY, true, 1.0, true, 360.0);
-	hCvar_AnnounceMode = CreateConVar("lmc_announcemode", "1", "Display Mode for !lmc command (0 = off, 1 = Print to chat, 2 = Hint text)", FCVAR_NOTIFY, true, 0.0, true, 2.0);
-	HookConVarChange(hCvar_AdminOnlyModel, eConvarChanged);
+	hCvar_AdminFlag 		= CreateConVar("lmc_admin_flag", 		"n", 	"Players with these flags have access to use !lmc command and change model. (Empty = Everyone, -1: Nobody)\nNOTE: this will enable announcement to player who join server.", FCVAR_NOTIFY);
+	hCvar_AnnounceDelay 	= CreateConVar("lmc_announcedelay", 	"15.0", "Delay On which a message is displayed for !lmc command", FCVAR_NOTIFY, true, 1.0, true, 360.0);
+	hCvar_AnnounceMode 		= CreateConVar("lmc_announcemode", 		"1", 	"Display Mode for !lmc command (0 = off, 1 = Print to chat, 2 = Hint text)", FCVAR_NOTIFY, true, 0.0, true, 2.0);
+	HookConVarChange(hCvar_AdminFlag, eConvarChanged);
 	HookConVarChange(hCvar_AnnounceDelay, eConvarChanged);
 	HookConVarChange(hCvar_AnnounceMode, eConvarChanged);
 	AutoExecConfig(true, "LMC_L4D1_Menu_Choosing");
@@ -204,32 +204,32 @@ void eConvarChanged(Handle hCvar, const char[] sOldVal, const char[] sNewVal)
 
 void CvarsChanged()
 {
-	if(hCvar_ArrayIndex[0] != INVALID_HANDLE)
+	if(hCvar_ArrayIndex[0] != null)
 		g_bAllowTank = GetConVarInt(hCvar_ArrayIndex[0]) > 0;
-	if(hCvar_ArrayIndex[1] != INVALID_HANDLE)
+	if(hCvar_ArrayIndex[1] != null)
 		g_bAllowHunter = GetConVarInt(hCvar_ArrayIndex[1]) > 0;
-	if(hCvar_ArrayIndex[2] != INVALID_HANDLE)
+	if(hCvar_ArrayIndex[2] != null)
 		g_bAllowSmoker = GetConVarInt(hCvar_ArrayIndex[2]) > 0;
-	if(hCvar_ArrayIndex[3] != INVALID_HANDLE)
+	if(hCvar_ArrayIndex[3] != null)
 		g_bAllowBoomer = GetConVarInt(hCvar_ArrayIndex[3]) > 0;
-	if(hCvar_ArrayIndex[4] != INVALID_HANDLE)
+	if(hCvar_ArrayIndex[4] != null)
 		g_bAllowSurvivors = GetConVarInt(hCvar_ArrayIndex[4]) > 0;
-	if(hCvar_ArrayIndex[5] != INVALID_HANDLE)
+	if(hCvar_ArrayIndex[5] != null)
 		g_bTankModel = GetConVarInt(hCvar_ArrayIndex[5]) > 0;
 
-	g_bAdminOnly = GetConVarInt(hCvar_AdminOnlyModel) > 0;
-	g_fAnnounceDelay = GetConVarFloat(hCvar_AnnounceDelay);
-	g_iAnnounceMode = GetConVarInt(hCvar_AnnounceMode);
+	hCvar_AdminFlag.GetString(g_sCvar_AdminFlag, sizeof(g_sCvar_AdminFlag));
+	g_fAnnounceDelay = hCvar_AnnounceDelay.FloatValue;
+	g_iAnnounceMode = hCvar_AnnounceMode.IntValue;
 }
 
 void HookCvars()
 {
 	for(int i = 0; i < CvarIndexes; i++)
 	{
-		if(hCvar_ArrayIndex[i] != INVALID_HANDLE)
+		if(hCvar_ArrayIndex[i] != null)
 			continue;
 
-		if((hCvar_ArrayIndex[i] = FindConVar(sSharedCvarNames[i])) == INVALID_HANDLE)
+		if((hCvar_ArrayIndex[i] = FindConVar(sSharedCvarNames[i])) == null)
 		{
 			PrintToServer("[LMC]Unable to find shared cvar \"%s\" using fallback value plugin:(%s)", sSharedCvarNames[i], PLUGIN_NAME);
 			continue;
@@ -242,7 +242,7 @@ void HookCvars()
 public void OnMapStart()
 {
 	bool bPrecacheModels = true;
-	if(FindConVar(sSharedCvarNames[6]) != INVALID_HANDLE)
+	if(FindConVar(sSharedCvarNames[6]) != null)
 	{
 		char sCvarString[4096];
 		char sMap[67];
@@ -292,7 +292,7 @@ void ePlayerSpawn(Handle hEvent, const char[] sEventName, bool bDontBroadcast)
 
 	LMC_ResetRenderMode(iClient);
 
-	if(g_bAdminOnly && !CheckCommandAccess(iClient, "sm_lmc", COMMAND_ACCESS))
+	if(HasAccess(iClient, g_sCvar_AdminFlag) == false)
 			return;
 
 	switch(GetClientTeam(iClient))
@@ -362,7 +362,7 @@ void ePlayerBotReplace(Handle hEvent, const char[] sEventName, bool bDontBroadca
 
 	LMC_ResetRenderMode(iBot);
 
-	if(g_bAdminOnly && !CheckCommandAccess(iBot, "sm_lmc", COMMAND_ACCESS))
+	if(HasAccess(iClient, g_sCvar_AdminFlag) == false)
 			return;
 
 	switch(GetClientTeam(iBot))
@@ -445,7 +445,7 @@ void ShowMenu(int iClient)
 		ReplyToCommand(iClient, LMC_Translate(iClient, "%t", "In-game only")); // "[LMC] Menu is in-game only.");
 		return;
 	}
-	if(g_bAdminOnly && !CheckCommandAccess(iClient, "sm_lmc", COMMAND_ACCESS))
+	if(HasAccess(iClient, g_sCvar_AdminFlag) == false)
 	{
 		LMC_CPrintToChat(iClient, "%t", "Admin only");// "\x04[LMC] \x03Model Changer is only available to admins.");
 		return;
@@ -773,15 +773,18 @@ public void OnClientPostAdminCheck(int iClient)
 	if(IsFakeClient(iClient))
 		return;
 
-	if(g_iAnnounceMode != 0 && !g_bAdminOnly)
+	if(g_iAnnounceMode != 0)
 		CreateTimer(g_fAnnounceDelay, iClientInfo, GetClientUserId(iClient), TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public Action iClientInfo(Handle hTimer, any iUserID)
 {
 	int iClient = GetClientOfUserId(iUserID);
-	if(iClient < 1 || iClient > MaxClients || !IsClientInGame(iClient))
-		return Plugin_Stop;
+	if(!iClient || !IsClientInGame(iClient) || IsFakeClient(iClient))
+		return Plugin_Continue;
+
+	if(HasAccess(iClient, g_sCvar_AdminFlag) == false)
+		return Plugin_Continue;
 
 	switch(g_iAnnounceMode)
 	{
@@ -882,7 +885,7 @@ public void OnClientCookiesCached(int iClient)
 	if(!IsClientInGame(iClient) || !IsPlayerAlive(iClient))
 		return;
 
-	if(g_bAdminOnly && !CheckCommandAccess(iClient, "sm_lmc", COMMAND_ACCESS))
+	if(HasAccess(iClient, g_sCvar_AdminFlag) == false)
 			return;
 
 	ModelIndex(iClient, iSavedModel[iClient], false);
@@ -892,4 +895,23 @@ public void LMC_OnClientModelApplied(int iClient, int iEntity, const char sModel
 {
 	if(bBaseReattach)//if true because orignal overlay model has been killed
 		LMC_L4D1_SetTransmit(iClient, iEntity);
+}
+
+bool HasAccess(int client, char[] sAcclvl)
+{
+	// no permissions set
+	if (strlen(sAcclvl) == 0)
+		return true;
+
+	else if (StrEqual(sAcclvl, "-1"))
+		return false;
+
+	// check permissions
+	int flag = GetUserFlagBits(client);
+	if ( flag & ReadFlagString(sAcclvl) || flag & ADMFLAG_ROOT )
+	{
+		return true;
+	}
+
+	return false;
 }

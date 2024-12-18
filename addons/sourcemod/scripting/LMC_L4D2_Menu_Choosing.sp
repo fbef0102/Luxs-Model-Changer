@@ -420,7 +420,10 @@ void ePlayerBotReplace(Handle hEvent, const char[] sEventName, bool bDontBroadca
 	int iClient = GetClientOfUserId(GetEventInt(hEvent, "player"));
 	int iBot = GetClientOfUserId(GetEventInt(hEvent, "bot"));
 
-	if(iBot < 1 || iBot > MaxClients)
+	if(iBot < 1 || iBot > MaxClients || !IsClientInGame(iBot))
+		return;
+
+	if(iClient < 1 || iClient > MaxClients || !IsClientInGame(iClient))
 		return;
 
 	if(!IsFakeClient(iBot))
